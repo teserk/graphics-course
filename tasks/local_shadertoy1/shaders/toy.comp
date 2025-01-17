@@ -4,6 +4,15 @@ layout(local_size_x = 32, local_size_y = 32) in;
 
 layout(binding = 0, rgba8) uniform image2D resultImage;
 
+layout(push_constant) uniform pushed_params 
+{
+  uint resolution_x;
+  uint resolution_y;
+  float time;
+  float mouse_x;
+  float mouse_y;
+} pushed_params_t;
+
 float iTime;
 vec2 iResolution;
 vec2 iMouse;
