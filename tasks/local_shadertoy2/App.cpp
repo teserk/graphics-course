@@ -76,7 +76,7 @@ App::App()
   computePipeline = etna::get_context().getPipelineManager().createComputePipeline("texture", {});
 
 
-  etna::create_program("local_shader_1", {LOCAL_SHADERTOY1_SHADERS_ROOT "toy.comp.spv"});
+  etna::create_program("local_shader_1", {LOCAL_SHADERTOY2_SHADERS_ROOT "toy.comp.spv"});
 
   pipeline = etna::get_context().getPipelineManager().createComputePipeline("local_shader_1", {});
 
