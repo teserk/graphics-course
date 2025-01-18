@@ -1,0 +1,146 @@
+#version 430
+
+layout(local_size_x = 32, local_size_y = 32) in;
+
+layout(binding = 0, rgba8) uniform image2D resultImage;
+
+layout(push_constant) uniform pushed_params 
+{
+  uint resolution_x;
+  uint resolution_y;
+  float time;
+  float mouse_x;
+  float mouse_y;
+} pushed_params_t;
+
+float iTime;
+vec2 iResolution;
+vec2 iMouse;
+
+const int MAX_MARCHING_STEPS = 255;
+const float MIN_DIST = 0.0;
+const float MAX_DIST = 100.0;
+const float PRECISION = 1e-3;
+const float RAD = 1.0;
+
+struct Sphere {
+    vec3 center;
+    float radius;
+    float speed;
+    float phase;
+};
+
+Sphere spheres[3];
+
+void initializeSpheres() {
+    spheres[0] = Sphere(vec3(0.0, 1.0, -1.0), RAD, 1.5, 0.0);
+    spheres[1] = Sphere(vec3(-2.0, 1.0, -3.0), RAD, 2.0, 1.0);
+    spheres[2] = Sphere(vec3(2.0, 1.0, -5.0), RAD, 1.8, 2.0);
+}
+
+float sdSphere(vec3 p, Sphere sphere) {
+    float bounce = -4.9 * pow(mod(iTime * sphere.speed + sphere.phase, 2.0) - 1.0, 2.0) + 1.0;
+    return length(p - vec3(sphere.center.x, sphere.center.y + bounce, sphere.center.z)) - sphere.radius;
+}
+
+float sceneSDF(vec3 p) {
+    float d = 1e10;
+    for (int i = 0; i < 3; i++) {
+        d = min(d, sdSphere(p, spheres[i]));
+    }
+    return d;
+}
+
+float rayMarch(vec3 ro, vec3 rd, float start, float end) {
+    float depth = start;
+
+    for (int i = 0; i < MAX_MARCHING_STEPS; i++) {
+        vec3 p = ro + depth * rd;
+        float d = sceneSDF(p);
+        depth += d;
+        if (d < PRECISION || depth > end) break;
+    }
+
+    return depth;
+}
+
+vec3 calcNormal(vec3 p) {
+    vec2 e = vec2(1.0, -1.0) * PRECISION;
+    return normalize(
+        e.xyy * sceneSDF(p + e.xyy) +
+        e.yyx * sceneSDF(p + e.yyx) +
+        e.yxy * sceneSDF(p + e.yxy) +
+        e.xxx * sceneSDF(p + e.xxx)
+    );
+}
+
+vec4 rayPlaneIntersection(vec3 ro, vec3 rd, float planeY, vec3 col) {
+    float t = (planeY - ro.y) / rd.y;
+    if (t > 0.0) {
+        vec3 p = ro + t * rd;
+        return vec4(col, 1.0);
+    }
+    return vec4(0.0);
+}
+
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+    vec2 uv = fragCoord / iResolution.xy;
+    vec2 mouse = iMouse.xy / iResolution.xy;
+    if (iMouse.xy == vec2(0.0)) {
+        mouse = vec2(0.3, 0.5);
+    }
+    float yaw = (mouse.x * 2.0 - 1.0) * 3.14159;
+    float pitch = (mouse.y - 0.5) * 3.14159;
+
+    vec3 forward = vec3(cos(yaw) * cos(pitch), sin(pitch), sin(yaw) * cos(pitch));
+    vec3 right = normalize(cross(vec3(0.0, 1.0, 0.0), forward));
+    vec3 up = normalize(cross(forward, right));
+
+    vec3 ro = vec3(0.0, 1.5, 5.0);
+    vec3 rd = normalize(forward + (uv.x - 0.5) * right * (iResolution.x / iResolution.y) + (uv.y - 0.5) * up);
+
+    initializeSpheres();
+
+    float d = rayMarch(ro, rd, MIN_DIST, MAX_DIST);
+    vec3 col = vec3(0.0);
+
+    if (d < MAX_DIST) {
+        vec3 p = ro + rd * d;
+        vec3 normal = calcNormal(p);
+        vec3 lightPos = vec3(1.5, 5.0, 3.0);
+        vec3 lightDir = normalize(lightPos - p);
+        float diff = max(dot(normal, lightDir), 0.0);
+        col = diff * vec3(0.7, 0.4, 0.4);
+    } else {
+        vec4 floorColor = rayPlaneIntersection(ro, rd, 0.0, vec3(0.0, 0.8, 0.0));
+        if (floorColor.a > 0.0) {
+            fragColor = floorColor;
+            return;
+        }
+        vec4 ceilingColor = rayPlaneIntersection(ro, rd, 3.0, vec3(0.5, 0.7, 1.0));
+        if (ceilingColor.a > 0.0) {
+            fragColor = ceilingColor;
+            return;
+        }
+    }
+
+    fragColor = vec4(col, 1.0);
+}
+
+
+
+void main()
+{
+  ivec2 uv = ivec2(gl_GlobalInvocationID.xy);
+
+  iResolution = vec2(pushed_params_t.resolution_x, pushed_params_t.resolution_y);
+  iTime = pushed_params_t.time;
+  iMouse = vec2(pushed_params_t.mouse_x, pushed_params_t.mouse_y);
+
+  vec4 fragColor;
+  vec2 fragCoord = vec2(gl_GlobalInvocationID.xy);
+  mainImage(fragColor, fragCoord);
+
+  if (uv.x < pushed_params_t.resolution_x && uv.y < pushed_params_t.resolution_y)
+    imageStore(resultImage, uv, fragColor);
+}
