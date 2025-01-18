@@ -1,8 +1,5 @@
+#define STB_IMAGE_IMPLEMENTATION
 #include "App.hpp"
-
-#include <etna/Etna.hpp>
-#include <etna/GlobalContext.hpp>
-#include <etna/PipelineManager.hpp>
 
 
 App::App()

@@ -145,3 +145,14 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 
     fragColor = vec4(col, 1.0);
 }
+
+void main( )
+{
+  ivec2 fragCoord = ivec2(gl_FragCoord.xy);
+
+  iResolution = vec2(pushed_params_t.resolution_x, pushed_params_t.resolution_y);
+  iTime = pushed_params_t.time;
+  iMouse = vec2(pushed_params_t.mouse_x, pushed_params_t.mouse_y);
+
+  mainImage(fragColor, fragCoord);
+}
