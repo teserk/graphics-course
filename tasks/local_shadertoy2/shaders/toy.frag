@@ -1,10 +1,12 @@
 #version 430
 
-layout(local_size_x = 32, local_size_y = 32) in;
 
-layout(binding = 0, rgba8) uniform image2D resultImage;
+layout(location = 0) out vec4 fragColor;
 
+layout(binding = 0) uniform sampler2D emp;
+layout(binding = 1) uniform sampler2D iChannel0;
 layout(push_constant) uniform pushed_params 
+
 {
   uint resolution_x;
   uint resolution_y;
@@ -22,6 +24,7 @@ const float MIN_DIST = 0.0;
 const float MAX_DIST = 100.0;
 const float PRECISION = 1e-3;
 const float RAD = 1.0;
+const float FLOOR_SCALE = 1.0;
 
 struct Sphere {
     vec3 center;
@@ -74,13 +77,26 @@ vec3 calcNormal(vec3 p) {
     );
 }
 
-vec4 rayPlaneIntersection(vec3 ro, vec3 rd, float planeY, vec3 col) {
-    float t = (planeY - ro.y) / rd.y;
-    if (t > 0.0) {
-        vec3 p = ro + t * rd;
-        return vec4(col, 1.0);
-    }
-    return vec4(0.0);
+vec3 triPlanarProjection(vec3 p, vec3 normal, sampler2D tex) {
+    normal = abs(normal);
+    vec3 blend = normalize(pow(normal, vec3(10.0)));
+    blend /= (blend.x + blend.y + blend.z);
+
+    vec3 xTex = texture(tex, p.yz).rgb;
+    vec3 yTex = texture(tex, p.zx).rgb;
+    vec3 zTex = texture(tex, p.xy).rgb;
+
+    return xTex * blend.x + yTex * blend.y + zTex * blend.z;
+}
+
+vec4 floorTexture(vec3 p) {
+    vec3 texColor = texture(iChannel0, p.xz * FLOOR_SCALE).rgb;
+    return vec4(texColor, 1.0);
+}
+
+vec3 staticTriPlanarProjection(vec3 worldPos, vec3 objectCenter, vec3 normal, sampler2D tex) {
+    vec3 p = worldPos - objectCenter;
+    return triPlanarProjection(p, normal, tex);
 }
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
@@ -107,40 +123,25 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     if (d < MAX_DIST) {
         vec3 p = ro + rd * d;
         vec3 normal = calcNormal(p);
+
+        for (int i = 0; i < 3; i++) {
+            if (abs(sdSphere(p, spheres[i])) < PRECISION) {
+                col = staticTriPlanarProjection(p, spheres[i].center, normal, iChannel0);
+                break;
+            }
+        }
+
         vec3 lightPos = vec3(1.5, 5.0, 3.0);
         vec3 lightDir = normalize(lightPos - p);
         float diff = max(dot(normal, lightDir), 0.0);
-        col = diff * vec3(0.7, 0.4, 0.4);
+        col *= diff;
     } else {
-        vec4 floorColor = rayPlaneIntersection(ro, rd, 0.0, vec3(0.0, 0.8, 0.0));
-        if (floorColor.a > 0.0) {
-            fragColor = floorColor;
-            return;
-        }
-        vec4 ceilingColor = rayPlaneIntersection(ro, rd, 3.0, vec3(0.5, 0.7, 1.0));
-        if (ceilingColor.a > 0.0) {
-            fragColor = ceilingColor;
-            return;
-        }
+        float planeY = 0.0;
+        float t = (planeY - ro.y) / rd.y;
+        vec3 p = ro + t * rd;
+        fragColor = floorTexture(p);
+        return;
     }
 
     fragColor = vec4(col, 1.0);
-}
-
-
-
-void main()
-{
-  ivec2 uv = ivec2(gl_GlobalInvocationID.xy);
-
-  iResolution = vec2(pushed_params_t.resolution_x, pushed_params_t.resolution_y);
-  iTime = pushed_params_t.time;
-  iMouse = vec2(pushed_params_t.mouse_x, pushed_params_t.mouse_y);
-
-  vec4 fragColor;
-  vec2 fragCoord = vec2(gl_GlobalInvocationID.xy);
-  mainImage(fragColor, fragCoord);
-
-  if (uv.x < pushed_params_t.resolution_x && uv.y < pushed_params_t.resolution_y)
-    imageStore(resultImage, uv, fragColor);
 }
