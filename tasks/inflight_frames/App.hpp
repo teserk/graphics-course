@@ -11,11 +11,14 @@
 #include <etna/GlobalContext.hpp>
 #include <etna/RenderTargetStates.hpp>
 #include <etna/BlockingTransferHelper.hpp>
+#include <etna/Buffer.hpp>
+#include <etna/Profiling.hpp>
 #include <chrono>
 #include <stb_image.h>
 
 #include "wsi/OsWindowingManager.hpp"
 
+#define FRAMES_IN_FLIGHT 2
 
 class App
 {
@@ -59,4 +62,7 @@ private:
 
 
   std::chrono::system_clock::time_point start = std::chrono::system_clock::now();
+
+  std::array<etna::Buffer, FRAMES_IN_FLIGHT> constantBuf;
+  size_t bufIndex = 0;
 };
