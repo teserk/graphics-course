@@ -74,21 +74,14 @@ App::App()
 
   etna::create_program("texture", {LOCAL_SHADERTOY2_SHADERS_ROOT "texture.comp.spv"});
   computePipeline = etna::get_context().getPipelineManager().createComputePipeline("texture", {});
-
-
-  etna::create_program("local_shader_1", {LOCAL_SHADERTOY2_SHADERS_ROOT "toy.comp.spv"});
-
-  computePipeline = etna::get_context().getPipelineManager().createComputePipeline("local_shader_1", {});
-
-  sampler = etna::Sampler(etna::Sampler::CreateInfo{.name = "sampler_shader_1"});
+  sampler = etna::Sampler(etna::Sampler::CreateInfo{.name = "computeSampler"});
 
   bufImage = etna::get_context().createImage(etna::Image::CreateInfo{
     .extent = vk::Extent3D{resolution.x, resolution.y, 1},
     .name = "output",
     .format = vk::Format::eR8G8B8A8Unorm,
-    .imageUsage = vk::ImageUsageFlagBits::eStorage |
-      vk::ImageUsageFlagBits::eSampled,
-  });
+    .imageUsage = vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eTransferSrc |
+      vk::ImageUsageFlagBits::eSampled});
 
   etna::create_program(
     "image",
