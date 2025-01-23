@@ -80,7 +80,7 @@ App::App()
     .extent = vk::Extent3D{resolution.x, resolution.y, 1},
     .name = "output",
     .format = vk::Format::eR8G8B8A8Unorm,
-    .imageUsage = vk::ImageUsageFlagBits::eStorage |
+    .imageUsage = vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eTransferSrc |
       vk::ImageUsageFlagBits::eSampled,
   });
 
